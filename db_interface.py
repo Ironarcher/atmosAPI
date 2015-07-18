@@ -10,18 +10,21 @@ def randKey(digits):
 		'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz') for i in range(digits))
 
 def createTable(ownerproject, tablename):
+	if "-" in tablename:
+		print("The tablename cannot contain the character '-'.")
+		return
+
 	projects = db['projects']
-	projectfile = projects.find_one({"name" : onwerproject})
+	projectfile = projects.find_one({"name" : ownerproject})
 	if projectfile is not None:
-		name = ownerproject.join('-').join(tablename)
-		if db[name] is None:
-			db.createCollection(name)
+		name = ownerproject + "-" + tablename
+		if name not in db.collection_names():
+			db.create_collection(name)
 			description = {"type:" : "description",
 						   "duplicate_loss" : 0,
-						   "incorrect_syntax" : 0,
-						   "invalid_table_name" : 0,
-						   "packet_too_large" : 0,
-						   "invalid_api_key" : 0
+						   "invalid_api_key" : 0,
+						   "server_error" : 0,
+						   "misc_error" : 0
 						  }
 			col = db[name]
 			col.insert_one(description)
@@ -44,7 +47,7 @@ def createProject(name, creator, access):
 
 	if projects.find_one({"name" : name}) is None:
 		description = {"name" : name,
-					   "tables" : ['logs'],
+					   "tables" : [name + '-log'],
 					   "admins" : [creator],
 					   "contributors" : [creator],
 					   "readers" : [creator],
@@ -55,10 +58,11 @@ def createProject(name, creator, access):
 		print("Error: Project name already exists. Choose a different name.")
 
 def log(project, table, value):
-	name = ownerproject.join('-').join(tablename)
-	if db['name'] is not None:
+	name = project + "-" + table
+	if db[name] is not None:
 		log = {"type" : "log",
 			   "value" : value,
-			   "dateCreated" : int(time.time())}
+			   "datetime" : int(time.time())}
+		db[name].insert_one(log)
 	else:
 		print('Cannot log because project or table name is not valid.')

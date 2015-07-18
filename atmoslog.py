@@ -1,6 +1,9 @@
 import socket
 import thread
+import threading
 import sys
+import random
+import time
 from urllib2 import urlopen
 
 #Insert secret api key here
@@ -10,24 +13,50 @@ record_update_timer = 600
 #Do not tamper with these:
 logrecord = {}
 started = False
+connectionStrong = False
+connect_key = ""
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+def setInterval(interval):
+    def decorator(function):
+        def wrapper(*args, **kwargs):
+            stopped = threading.Event()
+
+            def loop(): # executed in another thread
+                while not stopped.wait(interval) and started: # until stopped
+                    function(*args, **kwargs)
+
+            t = threading.Thread(target=loop)
+            t.daemon = True # stop if the program exits
+            function(*args, **kwargs)
+            t.start()
+            return stopped
+        return wrapper
+    return decorator
+
 def activate():
-	started = True
-	recordlog()
-	ping()
-	print("Logging activated")
+	if apikey != "":
+		started = True
+		recordlog()
+		ping()
+		startRecord()
+		print("Logging activated")
+	else:
+		print("Cannot start. Api key not set.")
 
 #Input the name of the table and the text to log
 def log(tablename, text):
 	if not started:
 		activate()
+	if not connectionStrong:
+		print("Warning: Connection not confirmed")
+		ping()
 	thread.start_new_thread(sendMessage, (tablename, text))
 
 @setInterval(record_update_timer)
 def recordlog():
 	typ = "3"
-	msg = typ + apikey + "%s"
+	msg = typ + connect_key + "%s"
 
 	for key, value in logrecord.iteritems():
 		msg.join(key)
@@ -53,7 +82,7 @@ def sendMessage(tablename, text):
 		if text.contains("%s"):
 			text.replace("%s", "#><$")
 			
-		msg = typ + apikey + "%s" + tablename + "%s" + text
+		msg = typ + apikey + connect_key + "%s" + tablename + "%s" + text
 		if sys.getsizeof(msg) < 4096:
 			sent = s.sendto(message, getHostIP())
 		else:
@@ -67,23 +96,6 @@ def getHostIP():
 	server_address = ('localhost', 8191)
 	return server_address
 
-def setInterval(interval):
-    def decorator(function):
-        def wrapper(*args, **kwargs):
-            stopped = threading.Event()
-
-            def loop(): # executed in another thread
-                while not stopped.wait(interval) and started: # until stopped
-                    function(*args, **kwargs)
-
-            t = threading.Thread(target=loop)
-            t.daemon = True # stop if the program exits
-            function(*args, **kwargs)
-            t.start()
-            return stopped
-        return wrapper
-    return decorator
-
 def ping():
 	thread.start_new_thread(ping_child, ())
 
@@ -96,6 +108,21 @@ def ping_child():
 	timed = end - start
 	print("Pinged server: %s millisecond response time" % timed)
 	print("Logging connection is go")
+	connectionStrong = True
+
+def startRecord():
+	thread.start_new_thread(startRecord_child, ())
+
+def startRecord_child():
+	connect_key = createRandomAN(10)
+	msg = "4" + connect_key
+	s.sendto(msg, getHostIP())
+	data, server = s.recvfrom(4096)
+	print("Connection confirmed with connect key %s" % connect_key)
+
+def createRandomAN(digits):
+	return ''.join(random.choice(
+		'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz') for i in range(digits))
 
 def deactivate():
 	started = False
