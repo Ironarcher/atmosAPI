@@ -20,7 +20,7 @@ def createTable(ownerproject, tablename):
 		name = ownerproject + "-" + tablename
 		if name not in db.collection_names():
 			db.create_collection(name)
-			description = {"type:" : "description",
+			description = {"type" : "description",
 						   "duplicate_loss" : 0,
 						   "invalid_api_key" : 0,
 						   "server_error" : 0,
@@ -66,3 +66,20 @@ def log(project, table, value):
 		db[name].insert_one(log)
 	else:
 		print('Cannot log because project or table name is not valid.')
+
+def findlogs(project, table, amt):
+	name = project.join('-').join(table)
+	coll = db[name]
+	if coll is not None:
+		content = {}
+		counter = 0
+		for post in coll.find():
+			if counter < amt:
+				if post['type'] is 'log':
+					content.append(post['value'])
+					counter = counter + 1
+			else:
+				break
+		return content
+	else:
+		return '404'
